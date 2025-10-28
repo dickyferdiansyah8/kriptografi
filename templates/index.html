@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AES Video Encrypt/Decrypt — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:Segoe UI,Roboto,Arial;margin:0;background:#0b1020;color:#e6eef6;}
+    .wrap{max-width:1200px;margin:24px auto;padding:20px;}
+    h1{text-align:center;color:#7dd3fc;margin-bottom:18px;}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+    .card{background:linear-gradient(180deg,#0f1724,#0b1220);border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(2,6,23,0.7);}
+    label{font-weight:600;display:block;margin-top:8px;color:#c7d2fe;}
+    input[type=file],input[type=password],input[type=text]{width:100%;padding:10px;border:1px solid #1f2937;border-radius:8px;margin-bottom:10px;background:#071023;color:#e6eef6;}
+    button{background:#06b6d4;color:#041014;padding:10px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:700;}
+    .hashbox{font-family:monospace;font-size:12px;word-break:break-all;background:#071827;padding:8px;border-radius:6px;border:1px solid #102a3a;}
+    .table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;color:#c7d2fe;}
+    .table th,.table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;}
+    .preview-img{max-width:100%;border-radius:8px;border:1px solid rgba(255,255,255,0.03);}
+    .small{font-size:12px;color:#93c5fd;}
+    .footer{margin-top:18px;text-align:center;color:#94a3b8;font-size:13px;}
+    .chart-container{position:relative;height:120px;width:100%;}
+    .metric-section{margin:12px 0;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;}
+    .metric-title{font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;}
+    .metric-value{font-size:13px;color:#e6eef6;}
+    .metric-unit{font-size:11px;color:#94a3b8;}
+  </style>
+</head>
+<body>
+<div id="histogram-data" 
+     data-orig="{{ hist_orig | tojson | safe }}" 
+     data-enc="{{ hist_enc | tojson | safe }}" 
+     data-dec="{{ hist_dec | tojson | safe }}">
+</div>
+
+<div class="wrap">
+  <h1>🔐 AES-GCM — Encrypt / Decrypt + Statistik</h1>
+
+  <div style="margin-bottom:14px;">
+    <small class="small">Sebelah kiri: file <b>asli</b>, tengah: <b>enkripsi</b>, kanan: <b>dekripsi</b>.</small>
+  </div>
+
+  <div class="grid">
+    <!-- File Asli -->
+    <div class="card">
+      <h3>🟦 File Asli</h3>
+      
+      <div class="metric-section">
+        <div class="metric-title">Ukuran</div>
+        <div class="metric-value">
+          {% if orig_size and orig_size > 0 %}
+            {{ "%.1f"|format(orig_size / 1024) }} <span class="metric-unit">KB</span>
+          {% else %}
+            - <span class="metric-unit">KB</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">Waktu Proses</div>
+        <div class="metric-value">
+          {% if orig_time and orig_time != '-' %}
+            {{ "%.2f"|format(orig_time) }} <span class="metric-unit">ms</span>
+          {% else %}
+            {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">MSE</div>
+        <div class="metric-value">{{ mse_orig|default('-') }}</div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">PSNR</div>
+        <div class="metric-value">
+          {% if psnr_orig and psnr_orig != '-' %}
+            {{ "%.3f"|format(psnr_orig) }} <span class="metric-unit">dB</span>
+          {% else %}
+            {{ psnr_orig|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">NPCR</div>
+        <div class="metric-value">
+          {% if npcr_orig and npcr_orig != '-' %}
+            {{ "%.3f"|format(npcr_orig) }}<span class="metric-unit">%</span>
+          {% else %}
+            {{ npcr_orig|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">UACI</div>
+        <div class="metric-value">
+          {% if uaci_orig and uaci_orig != '-' %}
+            {{ "%.3f"|format(uaci_orig) }}<span class="metric-unit">%</span>
+          {% else %}
+            {{ uaci_orig|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">ENTROPY</div>
+        <div class="metric-value">{{ ent_orig|default('-') }}</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-weight:600;color:#7dd3fc;margin-bottom:8px;font-size:14px;">Histogram Intensitas (0-256)</div>
+        <div class="chart-container">
+          <canvas id="histOrig"></canvas>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;">Preview</div>
+        {% if preview_orig %}
+          <img src="{{ url_for('static', filename='uploads/'+preview_orig) }}" class="preview-img">
+        {% else %}
+          <div style="color:#94a3b8;font-size:12px;text-align:center;padding:20px;">-</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Enkripsi -->
+    <div class="card">
+      <h3>🟨 Enkripsi</h3>
+      
+      <div class="metric-section">
+        <div class="metric-title">Ukuran</div>
+        <div class="metric-value">
+          {% if enc_size and enc_size > 0 %}
+            {{ "%.1f"|format(enc_size / 1024) }} <span class="metric-unit">KB</span>
+          {% else %}
+            - <span class="metric-unit">KB</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">Waktu Proses</div>
+        <div class="metric-value">
+          {% if enc_time and enc_time != '-' %}
+            {{ "%.2f"|format(enc_time * 1000) }} <span class="metric-unit">ms</span>
+          {% else %}
+            {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">MSE</div>
+        <div class="metric-value">{{ mse_enc|default('-') }}</div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">PSNR</div>
+        <div class="metric-value">
+          {% if psnr_enc and psnr_enc != '-' %}
+            {{ "%.3f"|format(psnr_enc) }} <span class="metric-unit">dB</span>
+          {% else %}
+            {{ psnr_enc|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">NPCR</div>
+        <div class="metric-value">
+          {% if npcr and npcr != '-' %}
+            {{ "%.3f"|format(npcr) }}<span class="metric-unit">%</span>
+          {% else %}
+            {{ npcr|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">UACI</div>
+        <div class="metric-value">
+          {% if uaci and uaci != '-' %}
+            {{ "%.3f"|format(uaci) }}<span class="metric-unit">%</span>
+          {% else %}
+            {{ uaci|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">ENTROPY</div>
+        <div class="metric-value">{{ ent_enc|default('-') }}</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-weight:600;color:#7dd3fc;margin-bottom:8px;font-size:14px;">Histogram Intensitas (0-256)</div>
+        <div class="chart-container">
+          <canvas id="histEnc"></canvas>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;">Kode Unik</div>
+        <div class="hashbox">{{ code or '-' }}</div>
+      </div>
+    </div>
+
+    <!-- Dekripsi -->
+    <div class="card">
+      <h3>🟩 Dekripsi</h3>
+      
+      <div class="metric-section">
+        <div class="metric-title">Ukuran</div>
+        <div class="metric-value">
+          {% if dec_size and dec_size > 0 %}
+            {{ "%.1f"|format(dec_size / 1024) }} <span class="metric-unit">KB</span>
+          {% else %}
+            - <span class="metric-unit">KB</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">Waktu Proses</div>
+        <div class="metric-value">
+          {% if dec_time and dec_time != '-' %}
+            {{ "%.2f"|format(dec_time * 1000) }} <span class="metric-unit">ms</span>
+          {% else %}
+            {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">MSE</div>
+        <div class="metric-value">{{ mse|default('-') }}</div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">PSNR</div>
+        <div class="metric-value">
+          {% if psnr and psnr != '-' %}
+            {{ "%.3f"|format(psnr) }} <span class="metric-unit">dB</span>
+          {% else %}
+            {{ psnr|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">NPCR</div>
+        <div class="metric-value">
+          {% if npcr_dec and npcr_dec != '-' %}
+            {{ "%.3f"|format(npcr_dec) }}<span class="metric-unit">%</span>
+          {% else %}
+            {{ npcr_dec|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">UACI</div>
+        <div class="metric-value">
+          {% if uaci_dec and uaci_dec != '-' %}
+            {{ "%.3f"|format(uaci_dec) }}<span class="metric-unit">%</span>
+          {% else %}
+            {{ uaci_dec|default('-') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="metric-section">
+        <div class="metric-title">ENTROPY</div>
+        <div class="metric-value">{{ ent_dec|default('-') }}</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-weight:600;color:#7dd3fc;margin-bottom:8px;font-size:14px;">Histogram Intensitas (0-256)</div>
+        <div class="chart-container">
+          <canvas id="histDec"></canvas>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;">Preview</div>
+        {% if preview_dec %}
+          <img src="{{ url_for('static', filename='uploads/'+preview_dec) }}" class="preview-img">
+        {% else %}
+          <div style="color:#94a3b8;font-size:12px;text-align:center;padding:20px;">-</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Kontrol Section -->
+  <div class="card" style="margin-top:14px;">
+    <h4>Kontrol</h4>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <form method="post" enctype="multipart/form-data" action="{{ url_for('encrypt') }}">
+        <label>File</label>
+        <input type="file" name="file" required>
+        <label>Password</label>
+        <input type="password" name="password" required>
+        <button type="submit">Encrypt</button>
+      </form>
+
+      <form method="post" action="{{ url_for('decrypt') }}">
+        <label>Kode</label>
+        <input type="text" name="code" required>
+        <label>Password</label>
+        <input type="password" name="password" required>
+        <button type="submit">Decrypt</button>
+      </form>
+
+      <form method="post" action="{{ url_for('report') }}">
+        <input type="hidden" name="code" value="{{ code or '' }}">
+        <button type="submit">Generate DOCX Report</button>
+      </form>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages() %}
+  {% if messages %}
+  <div class="card" style="margin-top:12px;">
+    {% for m in messages %}
+      <p style="color:#fb7185;">⚠️ {{ m }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="footer">AES-GCM + Histogram + NPCR/UACI + DOCX Export | Flask Dashboard</div>
+</div>
+
+<script>
+// Ambil data dari element
+const histElement = document.getElementById('histogram-data');
+const histData = {
+  orig: histElement ? JSON.parse(histElement.dataset.orig || '[]') : [],
+  enc: histElement ? JSON.parse(histElement.dataset.enc || '[]') : [],
+  dec: histElement ? JSON.parse(histElement.dataset.dec || '[]') : []
+};
+
+console.log('Histogram Data Loaded:', histData);
+
+// Fungsi untuk memvalidasi data histogram
+function validateHistogramData(data) {
+  if (!data || !Array.isArray(data)) {
+    console.log('Invalid data, using empty array');
+    return Array(256).fill(0);
+  }
+  
+  // Pastikan panjang array 256
+  if (data.length !== 256) {
+    console.log('Data length not 256, normalizing');
+    const normalized = Array(256).fill(0);
+    for (let i = 0; i < Math.min(data.length, 256); i++) {
+      normalized[i] = Number(data[i]) || 0;
+    }
+    return normalized;
+  }
+  
+  return data.map(val => Number(val) || 0);
+}
+
+// Fungsi untuk menggambar chart
+function drawChart(canvasId, data, color) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    console.warn(`Canvas dengan id '${canvasId}' tidak ditemukan`);
+    return;
+  }
+
+  const validatedData = validateHistogramData(data);
+  const labels = Array.from({length: 256}, (_, i) => i);
+
+  // Hancurkan chart lama jika ada
+  if (canvas.chart) {
+    canvas.chart.destroy();
+  }
+
+  const ctx = canvas.getContext('2d');
+  
+  try {
+    canvas.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Distribusi Intensitas Byte',
+          data: validatedData,
+          borderColor: color,
+          backgroundColor: color.replace('0.9', '0.1'),
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { 
+            display: false 
+          }
+        },
+        scales: {
+          x: { 
+            display: false,
+            grid: { 
+              display: false
+            }
+          },
+          y: { 
+            display: false,
+            grid: { 
+              display: false
+            }
+          }
+        },
+        elements: {
+          line: {
+            tension: 0.4
+          }
+        }
+      }
+    });
+    console.log(`Chart ${canvasId} berhasil digambar`);
+  } catch (error) {
+    console.error('Error drawing chart:', error);
+  }
+}
+
+// Tunggu hingga DOM siap
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM loaded, drawing charts...');
+  
+  // Gambar chart untuk setiap canvas yang ada
+  setTimeout(() => {
+    const charts = [
+      { id: 'histOrig', data: histData.orig, color: 'rgba(56,189,248,0.9)' },
+      { id: 'histEnc', data: histData.enc, color: 'rgba(20,184,166,0.9)' },
+      { id: 'histDec', data: histData.dec, color: 'rgba(132,204,22,0.9)' }
+    ];
+    
+    charts.forEach(chart => {
+      if (document.getElementById(chart.id)) {
+        drawChart(chart.id, chart.data, chart.color);
+      } else {
+        console.warn(`Canvas ${chart.id} tidak ditemukan`);
+      }
+    });
+  }, 100);
+});
+
+// Fallback: Coba gambar ulang setelah 1 detik
+setTimeout(() => {
+  const canvases = [
+    { id: 'histOrig', color: 'rgba(56,189,248,0.9)' },
+    { id: 'histEnc', color: 'rgba(20,184,166,0.9)' },
+    { id: 'histDec', color: 'rgba(132,204,22,0.9)' }
+  ];
+  
+  canvases.forEach((canvas, index) => {
+    const element = document.getElementById(canvas.id);
+    if (element) {
+      const dataKey = ['orig', 'enc', 'dec'][index];
+      if (!element.chart) {
+        console.log(`Redrawing chart ${canvas.id}`);
+        drawChart(canvas.id, histData[dataKey], canvas.color);
+      }
+    }
+  });
+}, 1000);
+</script>
+</body>
+</html>

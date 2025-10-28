@@ -1,0 +1,5 @@
+Flask>=2.0
+pycryptodome>=3.15
+python-docx>=0.8.11
+opencv-python>=4.5.5   # optional, only if you want frame extraction preview
+docx2pdf>=0.1.8        # optional, for DOCX->PDF on Windows/Mac
