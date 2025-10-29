@@ -20,39 +20,74 @@ def sha256sum(data: bytes) -> str:
 def entropy(data: bytes) -> float:
     if not data:
         return 0.0
-    p, _ = np.histogram(list(data), bins=256, range=(0, 256))
+    p, _ = np.histogram(np.frombuffer(data, dtype=np.uint8), bins=256, range=(0, 256))
     p = p / np.sum(p)
     p = p[p > 0]
     return -np.sum(p * np.log2(p))
 
 def histogram_data(data: bytes):
-    hist, _ = np.histogram(list(data), bins=256, range=(0, 256))
+    hist, _ = np.histogram(np.frombuffer(data, dtype=np.uint8), bins=256, range=(0, 256))
     return hist.tolist()
 
-def npcr_uaci(img1, img2):
-    if len(img1) != len(img2): return 0, 0
-    arr1 = np.frombuffer(img1, dtype=np.uint8)
-    arr2 = np.frombuffer(img2, dtype=np.uint8)
-    npcr = np.sum(arr1 != arr2) / len(arr1) * 100
-    uaci = np.mean(np.abs(arr1 - arr2) / 255) * 100
-    return round(npcr, 3), round(uaci, 3)
-
-def mse_psnr(img1, img2):
-    if len(img1) != len(img2):
+def npcr_uaci(data1, data2):
+    """Menghitung NPCR (Number of Pixel Change Rate) dan UACI (Unified Average Changing Intensity)"""
+    if len(data1) != len(data2):
+        # Jika panjang berbeda, buat data dengan panjang yang sama
+        min_len = min(len(data1), len(data2))
+        data1 = data1[:min_len]
+        data2 = data2[:min_len]
+    
+    if len(data1) == 0:
         return 0, 0
-    arr1 = np.frombuffer(img1, dtype=np.uint8)
-    arr2 = np.frombuffer(img2, dtype=np.uint8)
-    mse = np.mean((arr1 - arr2) ** 2)
-    psnr = 10 * np.log10((255 ** 2) / mse) if mse > 0 else 99
-    return round(mse, 3), round(psnr, 3)
+    
+    arr1 = np.frombuffer(data1, dtype=np.uint8)
+    arr2 = np.frombuffer(data2, dtype=np.uint8)
+    
+    # NPCR: Percentage of different bytes
+    diff_bytes = np.sum(arr1 != arr2)
+    npcr_value = (diff_bytes / len(arr1)) * 100
+    
+    # UACI: Average intensity difference
+    uaci_value = np.mean(np.abs(arr1.astype(float) - arr2.astype(float)) / 255) * 100
+    
+    return round(npcr_value, 3), round(uaci_value, 3)
+
+def mse_psnr(data1, data2):
+    """Menghitung MSE (Mean Squared Error) dan PSNR (Peak Signal to Noise Ratio)"""
+    if len(data1) != len(data2):
+        # Jika panjang berbeda, buat data dengan panjang yang sama
+        min_len = min(len(data1), len(data2))
+        data1 = data1[:min_len]
+        data2 = data2[:min_len]
+    
+    if len(data1) == 0:
+        return 0, 0
+    
+    arr1 = np.frombuffer(data1, dtype=np.uint8).astype(float)
+    arr2 = np.frombuffer(data2, dtype=np.uint8).astype(float)
+    
+    # MSE
+    mse_value = np.mean((arr1 - arr2) ** 2)
+    
+    # PSNR - batasi maksimal 100 dB
+    if mse_value == 0:
+        psnr_value = 100.0  # Daripada infinity, gunakan 100 dB
+    elif mse_value > 255**2:
+        psnr_value = 0.0  # Jika MSE sangat besar, PSNR = 0
+    else:
+        psnr_value = 10 * np.log10(255**2 / mse_value)
+        # Batasi maksimal 100 dB
+        psnr_value = min(psnr_value, 100.0)
+    
+    return round(mse_value, 3), round(psnr_value, 3)
 
 def is_image(filename):
     ext = filename.lower().split('.')[-1]
-    return ext in ['png', 'jpg', 'jpeg', 'bmp']
+    return ext in ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp']
 
 def is_video(filename):
     ext = filename.lower().split('.')[-1]
-    return ext in ['mp4', 'avi', 'mov', 'mkv']
+    return ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv']
 
 # ========== Fungsi AES ==========
 def aes_encrypt(data: bytes, password: str):
@@ -142,14 +177,23 @@ def encrypt():
         enc_hash = sha256sum(enc_data)
         ent_enc = round(entropy(enc_data), 4)
         hist_enc = histogram_data(enc_data)
-        npcr, uaci = npcr_uaci(data, enc_data)
         enc_size = len(enc_data)
 
+        # Hitung NPCR dan UACI untuk file asli vs terenkripsi
+        npcr, uaci = npcr_uaci(data, enc_data)
+        
         # Hitung MSE dan PSNR untuk file asli vs terenkripsi
         mse_enc, psnr_enc = mse_psnr(data, enc_data)
 
-        # Preview
-        preview_orig = filename if is_image(filename) or is_video(filename) else None
+        # Untuk file asli, MSE dan PSNR tidak relevan (bandingkan dengan diri sendiri)
+        # Tapi kita beri nilai default yang masuk akal
+        mse_orig, psnr_orig = 0, 100.0
+        npcr_orig, uaci_orig = 0, 0
+
+        # Preview - simpan file preview jika gambar/video
+        preview_orig = None
+        if is_image(filename) or is_video(filename):
+            preview_orig = filename
 
         # Simpan data enkripsi untuk digunakan nanti
         global last_encryption_data
@@ -167,24 +211,54 @@ def encrypt():
             'enc_time': enc_time,
             'mse_enc': mse_enc,
             'psnr_enc': psnr_enc,
+            'mse_orig': mse_orig,
+            'psnr_orig': psnr_orig,
+            'npcr_orig': npcr_orig,
+            'uaci_orig': uaci_orig,
             'preview_orig': preview_orig,
-            'code': code
+            'code': code,
+            'orig_data': data,
+            'enc_data': enc_data,
+            'orig_filename': filename
         }
 
         flash("File berhasil dienkripsi!")
         return render_template('index.html',
-                               orig_hash=orig_hash, ent_orig=ent_orig, hist_orig=hist_orig, orig_size=orig_size,
-                               enc_hash=enc_hash, ent_enc=ent_enc, hist_enc=hist_enc, enc_size=enc_size,
-                               npcr=npcr, uaci=uaci, enc_time=enc_time,
-                               mse_enc=mse_enc, psnr_enc=psnr_enc,
-                               code=code,
+                               # File Asli
+                               orig_hash=orig_hash, 
+                               orig_size=orig_size,
+                               ent_orig=ent_orig, 
+                               hist_orig=hist_orig,
+                               mse_orig=mse_orig,
+                               psnr_orig=psnr_orig,
+                               npcr_orig=npcr_orig,
+                               uaci_orig=uaci_orig,
                                preview_orig=preview_orig,
-                               preview_enc=None,
-                               preview_dec=None,
+                               
+                               # Enkripsi
+                               enc_hash=enc_hash, 
+                               enc_size=enc_size,
+                               ent_enc=ent_enc, 
+                               hist_enc=hist_enc,
+                               npcr=npcr, 
+                               uaci=uaci,
+                               enc_time=enc_time,
+                               mse_enc=mse_enc,
+                               psnr_enc=psnr_enc,
+                               code=code,
+                               
+                               # Dekripsi (kosong)
+                               dec_hash='-',
+                               dec_size=0,
+                               ent_dec='-',
                                hist_dec=[],
-                               mse_orig='-', psnr_orig='-', npcr_orig='-', uaci_orig='-',
-                               npcr_dec='-', uaci_dec='-', mse='-', psnr='-',
-                               dec_time=0, dec_size=0, ent_dec='-', orig_time=0)
+                               mse='-',
+                               psnr='-',
+                               dec_time=0,
+                               npcr_dec='-',
+                               uaci_dec='-',
+                               preview_dec=None,
+                               orig_time=0)
 
     except Exception as e:
         flash(f"Enkripsi gagal: {str(e)}")
@@ -199,52 +273,52 @@ def decrypt():
             flash("Kode atau password tidak boleh kosong!")
             return redirect(url_for('index'))
 
-        enc_files = list(Path(UPLOAD_FOLDER).glob("*.enc"))
-        if not enc_files:
-            flash("Tidak ada file terenkripsi!")
+        # Gunakan data enkripsi terakhir yang disimpan
+        global last_encryption_data
+        
+        if not last_encryption_data:
+            flash("Silakan lakukan enkripsi terlebih dahulu!")
             return redirect(url_for('index'))
 
-        # Cari file yang sesuai dengan kode
-        target_file = None
-        for enc_file in enc_files:
-            try:
-                enc_data = open(enc_file, 'rb').read()
-                # Cek apakah file ini sesuai dengan kode yang diberikan
-                if code in base64.urlsafe_b64encode(enc_data[:48]).decode():
-                    target_file = enc_file
-                    break
-            except:
-                continue
-
-        if not target_file:
-            flash("File enkripsi tidak ditemukan untuk kode tersebut!")
+        # Gunakan data terenkripsi yang disimpan
+        enc_data = last_encryption_data.get('enc_data')
+        if not enc_data:
+            flash("Data enkripsi tidak ditemukan!")
             return redirect(url_for('index'))
-
-        enc_data = open(target_file, 'rb').read()
 
         start = time.time()
         dec_data = aes_decrypt(enc_data, password)
         dec_time = time.time() - start  # dalam detik
 
-        dec_filename = target_file.stem + "_dec" + target_file.suffix.replace('.enc', '')
+        # Buat nama file dekripsi
+        orig_filename = last_encryption_data.get('orig_filename', 'file')
+        # Hapus extension .enc jika ada dan tambahkan _dec
+        if orig_filename.endswith('.enc'):
+            dec_filename = orig_filename[:-4] + '_dec'
+        else:
+            dec_filename = orig_filename + '_dec'
+        
         dec_path = os.path.join(UPLOAD_FOLDER, dec_filename)
         open(dec_path, 'wb').write(dec_data)
 
-        # Statistik
+        # Statistik Dekripsi
         dec_hash = sha256sum(dec_data)
         ent_dec = round(entropy(dec_data), 4)
         hist_dec = histogram_data(dec_data)
         dec_size = len(dec_data)
-        mse, psnr = mse_psnr(enc_data, dec_data)
 
-        # Hitung NPCR dan UACI untuk file terenkripsi vs terdekripsi
-        npcr_dec, uaci_dec = npcr_uaci(enc_data, dec_data)
-
-        preview_dec = dec_filename if is_image(dec_filename) or is_video(dec_filename) else None
-
-        # Gunakan data enkripsi terakhir yang disimpan
-        global last_encryption_data
+        # Hitung MSE dan PSNR untuk file asli vs terdekripsi (seharusnya 0 dan 100 jika sempurna)
+        orig_data = last_encryption_data.get('orig_data', b'')
+        mse, psnr = mse_psnr(orig_data, dec_data)
         
+        # Hitung NPCR dan UACI untuk file asli vs terdekripsi (seharusnya 0 jika sempurna)
+        npcr_dec, uaci_dec = npcr_uaci(orig_data, dec_data)
+
+        # Preview untuk file dekripsi
+        preview_dec = None
+        if is_image(dec_filename) or is_video(dec_filename):
+            preview_dec = dec_filename
+
         flash("File berhasil didekripsi!")
         return render_template('index.html',
                                # Data File Asli (dari enkripsi terakhir)
@@ -252,6 +326,10 @@ def decrypt():
                                orig_size=last_encryption_data.get('orig_size', 0),
                                ent_orig=last_encryption_data.get('ent_orig', '-'),
                                hist_orig=last_encryption_data.get('hist_orig', []),
+                               mse_orig=last_encryption_data.get('mse_orig', '-'),
+                               psnr_orig=last_encryption_data.get('psnr_orig', '-'),
+                               npcr_orig=last_encryption_data.get('npcr_orig', '-'),
+                               uaci_orig=last_encryption_data.get('uaci_orig', '-'),
                                preview_orig=last_encryption_data.get('preview_orig'),
                                
                                # Data Enkripsi (dari enkripsi terakhir)
@@ -266,7 +344,7 @@ def decrypt():
                                psnr_enc=last_encryption_data.get('psnr_enc', '-'),
                                code=last_encryption_data.get('code', '-'),
                                
-                               # Data Dekripsi (baru)
+                               # Data Dekripsi (baru) - bandingkan dengan file asli
                                dec_hash=dec_hash, 
                                ent_dec=ent_dec, 
                                hist_dec=hist_dec,
@@ -279,7 +357,6 @@ def decrypt():
                                preview_dec=preview_dec,
                                
                                # Default values
-                               mse_orig='-', psnr_orig='-', npcr_orig='-', uaci_orig='-',
                                orig_time=0)
 
     except Exception as e:
