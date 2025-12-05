@@ -6,25 +6,47 @@
   <title>AES Video Encrypt/Decrypt — Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body{font-family:Segoe UI,Roboto,Arial;margin:0;background:#0b1020;color:#e6eef6;}
-    .wrap{max-width:1200px;margin:24px auto;padding:20px;}
-    h1{text-align:center;color:#7dd3fc;margin-bottom:18px;}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
-    .card{background:linear-gradient(180deg,#0f1724,#0b1220);border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(2,6,23,0.7);}
-    label{font-weight:600;display:block;margin-top:8px;color:#c7d2fe;}
-    input[type=file],input[type=password],input[type=text]{width:100%;padding:10px;border:1px solid #1f2937;border-radius:8px;margin-bottom:10px;background:#071023;color:#e6eef6;}
-    button{background:#06b6d4;color:#041014;padding:10px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:700;}
-    .hashbox{font-family:monospace;font-size:12px;word-break:break-all;background:#071827;padding:8px;border-radius:6px;border:1px solid #102a3a;}
-    .table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;color:#c7d2fe;}
-    .table th,.table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;}
-    .preview-img{max-width:100%;border-radius:8px;border:1px solid rgba(255,255,255,0.03);}
-    .small{font-size:12px;color:#93c5fd;}
-    .footer{margin-top:18px;text-align:center;color:#94a3b8;font-size:13px;}
-    .chart-container{position:relative;height:120px;width:100%;}
-    .metric-section{margin:12px 0;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;}
-    .metric-title{font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;}
-    .metric-value{font-size:13px;color:#e6eef6;}
-    .metric-unit{font-size:11px;color:#94a3b8;}
+    body{font-family:Segoe UI,Roboto,Arial;margin:0;background:#0b1020;color:#e6eef6;overflow:hidden;height:100vh;}
+    .wrap{height:100vh;padding:10px;overflow-y:auto;}
+    .container{display:flex;height:calc(100vh - 20px);gap:12px;}
+    .main-content{flex:1;display:flex;flex-direction:column;gap:12px;}
+    h1{text-align:center;color:#7dd3fc;margin:0;font-size:18px;padding:6px 0;}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex:1;}
+    .card{background:linear-gradient(180deg,#0f1724,#0b1220);border-radius:8px;padding:10px;box-shadow:0 4px 12px rgba(2,6,23,0.7);overflow-y:auto;max-height:calc(100vh - 100px);}
+    .card h3{margin-top:0;font-size:14px;}
+    label{font-weight:600;display:block;margin-top:4px;color:#c7d2fe;font-size:12px;}
+    input[type=file],input[type=password],input[type=text]{width:100%;padding:6px;border:1px solid #1f2937;border-radius:6px;margin-bottom:6px;background:#071023;color:#e6eef6;font-size:12px;}
+    button{background:#06b6d4;color:#041014;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;margin-top:4px;}
+    .hashbox{font-family:monospace;font-size:10px;word-break:break-all;background:#071827;padding:6px;border-radius:4px;border:1px solid #102a3a;margin-top:4px;}
+    .table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px;color:#c7d2fe;}
+    .table th,.table td{padding:4px 6px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;}
+    .preview-img{max-width:100%;max-height:80px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);object-fit:contain;}
+    /* CSS untuk video preview */
+    .video-preview{max-width:100%;max-height:80px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:#000;object-fit:contain;}
+    .small{font-size:10px;color:#93c5fd;}
+    .footer{margin-top:8px;text-align:center;color:#94a3b8;font-size:11px;padding:4px 0;}
+    .chart-container{position:relative;height:80px;width:100%;}
+    .metric-section{margin:8px 0;padding:6px;background:rgba(255,255,255,0.03);border-radius:6px;}
+    .metric-title{font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:11px;}
+    .metric-value{font-size:11px;color:#e6eef6;}
+    .metric-unit{font-size:9px;color:#94a3b8;}
+    .metric-highlight{background:rgba(6,182,212,0.1);border-left:2px solid #06b6d4;}
+    /* TAMBAHAN CSS BARU */
+    .playback-success{background:rgba(34,197,94,0.1);border-left:2px solid #22c55e;}
+    .playback-fail{background:rgba(239,68,68,0.1);border-left:2px solid #ef4444;}
+    .file-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+    .file-type-badge{font-size:10px;color:#7dd3fc;background:rgba(125,211,252,0.1);padding:2px 6px;border-radius:4px;}
+    .metric-detail{font-size:9px;color:#94a3b8;margin-top:2px;}
+    .interpretation-box{margin-top:10px;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;font-size:10px;color:#94a3b8;}
+    .interpretation-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+    .success-text{color:#22c55e;font-weight:bold;}
+    .warning-text{color:#f59e0b;font-weight:bold;}
+    /* Sidebar untuk kontrol */
+    .sidebar{width:280px;background:linear-gradient(180deg,#0f1724,#0b1220);border-radius:8px;padding:10px;box-shadow:0 4px 12px rgba(2,6,23,0.7);overflow-y:auto;}
+    .sidebar h4{margin-top:0;font-size:14px;color:#7dd3fc;}
+    .control-group{margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.05);}
+    .control-group:last-child{border-bottom:none;}
+    .form-compact{display:flex;flex-direction:column;gap:6px;}
   </style>
 </head>
 <body>
@@ -34,307 +56,506 @@
      data-dec="{{ hist_dec | tojson | safe }}">
 </div>
 
+<!-- TAMBAHAN: Deteksi tipe file untuk preview -->
+{% if preview_orig %}
+  {% set file_ext = preview_orig.split('.')[-1].lower() if '.' in preview_orig else '' %}
+  {% set is_video_file = file_ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', 'mpg', 'mpeg'] %}
+  {% set is_image_file = file_ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff'] %}
+{% else %}
+  {% set is_video_file = false %}
+  {% set is_image_file = false %}
+{% endif %}
+
+{% if preview_dec %}
+  {% set dec_file_ext = preview_dec.split('.')[-1].lower() if '.' in preview_dec else '' %}
+  {% set is_dec_video = dec_file_ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', 'mpg', 'mpeg'] %}
+  {% set is_dec_image = dec_file_ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff'] %}
+{% else %}
+  {% set is_dec_video = false %}
+  {% set is_dec_image = false %}
+{% endif %}
+
 <div class="wrap">
-  <h1>🔐 AES-GCM — Encrypt / Decrypt + Statistik</h1>
+  <h1>🔐 AES-GCM — Video Encryption Dashboard</h1>
+  
+  <div class="container">
+    <!-- Sidebar Kontrol -->
+    <div class="sidebar">
+      <div class="control-group">
+        <h4>Upload & Encrypt</h4>
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('encrypt') }}" class="form-compact">
+          <label>File</label>
+          <input type="file" name="file" required>
+          <label>Password</label>
+          <input type="password" name="password" required>
+          <button type="submit">Encrypt</button>
+        </form>
+      </div>
 
-  <div style="margin-bottom:14px;">
-    <small class="small">Sebelah kiri: file <b>asli</b>, tengah: <b>enkripsi</b>, kanan: <b>dekripsi</b>.</small>
-  </div>
+      <div class="control-group">
+        <h4>Decrypt</h4>
+        <form method="post" action="{{ url_for('decrypt') }}" class="form-compact">
+          <label>Kode</label>
+          <input type="text" name="code" required>
+          <label>Password</label>
+          <input type="password" name="password" required>
+          <button type="submit">Decrypt</button>
+        </form>
+      </div>
 
-  <div class="grid">
-    <!-- File Asli -->
-    <div class="card">
-      <h3>🟦 File Asli</h3>
-      
-      <div class="metric-section">
-        <div class="metric-title">Ukuran</div>
-        <div class="metric-value">
-          {% if orig_size and orig_size > 0 %}
-            {{ "%.1f"|format(orig_size / 1024) }} <span class="metric-unit">KB</span>
-          {% else %}
-            - <span class="metric-unit">KB</span>
-          {% endif %}
+      <div class="control-group">
+        <h4>Actions</h4>
+        <form method="post" action="{{ url_for('report') }}" class="form-compact">
+          <input type="hidden" name="code" value="{{ code or '' }}">
+          <button type="submit">Generate DOCX Report</button>
+        </form>
+        
+        <form method="post" action="{{ url_for('cleanup') }}" class="form-compact">
+          <button type="submit" style="background:#ef4444;">Clear Session & Temp Files</button>
+        </form>
+      </div>
+
+      {% with messages = get_flashed_messages() %}
+      {% if messages %}
+      <div class="control-group">
+        <h4>Messages</h4>
+        {% for m in messages %}
+          <p style="color:#fb7185;font-size:11px;margin:4px 0;">⚠️ {{ m }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      <!-- INTERPRETASI METRIK -->
+      <div class="interpretation-box">
+        <strong>📊 Interpretasi Metrik:</strong>
+        <div class="interpretation-grid">
+          <div>
+            • <span style="color:#7dd3fc">Entropy:</span> 7.5+ = baik<br>
+            • <span style="color:#7dd3fc">Korelasi:</span> ≈0 = tidak ada pola<br>
+            • <span style="color:#7dd3fc">Avalanche:</span> ~50% = sensitif
+          </div>
+          <div>
+            • <span style="color:#7dd3fc">Hash Match:</span> Sama = sukses<br>
+            • <span style="color:#7dd3fc">Playback:</span> Verifikasi video<br>
+            • <span style="color:#7dd3fc">Ukuran:</span> Harus sama
+          </div>
         </div>
       </div>
 
-      <div class="metric-section">
-        <div class="metric-title">Waktu Proses</div>
-        <div class="metric-value">
-          {% if orig_time and orig_time != '-' %}
-            {{ "%.2f"|format(orig_time) }} <span class="metric-unit">ms</span>
-          {% else %}
-            {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
-          {% endif %}
-        </div>
-      </div>
+      <div class="footer">AES-GCM Video Encryption Dashboard</div>
+    </div>
 
-      <div class="metric-section">
-        <div class="metric-title">MSE</div>
-        <div class="metric-value">{{ mse_orig|default('-') }}</div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">PSNR</div>
-        <div class="metric-value">
-          {% if psnr_orig and psnr_orig != '-' %}
-            {{ "%.3f"|format(psnr_orig) }} <span class="metric-unit">dB</span>
-          {% else %}
-            {{ psnr_orig|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">NPCR</div>
-        <div class="metric-value">
-          {% if npcr_orig and npcr_orig != '-' %}
-            {{ "%.3f"|format(npcr_orig) }}<span class="metric-unit">%</span>
-          {% else %}
-            {{ npcr_orig|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">UACI</div>
-        <div class="metric-value">
-          {% if uaci_orig and uaci_orig != '-' %}
-            {{ "%.3f"|format(uaci_orig) }}<span class="metric-unit">%</span>
-          {% else %}
-            {{ uaci_orig|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">ENTROPY</div>
-        <div class="metric-value">{{ ent_orig|default('-') }}</div>
-      </div>
-
-      <div style="margin-top:16px;">
-        <div style="font-weight:600;color:#7dd3fc;margin-bottom:8px;font-size:14px;">Histogram Intensitas (0-256)</div>
-        <div class="chart-container">
-          <canvas id="histOrig"></canvas>
-        </div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <div style="font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;">Preview</div>
+    <!-- Konten Utama -->
+    <div class="main-content">
+      <!-- FILE TYPE INFO DENGAN CUSTOM FILTER -->
+      <div class="file-info">
+        <small class="small">Sebelah kiri: file <b>asli</b>, tengah: <b>enkripsi</b>, kanan: <b>dekripsi</b>.</small>
         {% if preview_orig %}
-          <img src="{{ url_for('static', filename='uploads/'+preview_orig) }}" class="preview-img">
-        {% else %}
-          <div style="color:#94a3b8;font-size:12px;text-align:center;padding:20px;">-</div>
+        <div class="file-type-badge">
+          File: {{ preview_orig }} ({{ preview_orig | filetype }})
+          {% if is_video_file %}(Video){% elif is_image_file %}(Gambar){% endif %}
+        </div>
         {% endif %}
       </div>
-    </div>
 
-    <!-- Enkripsi -->
-    <div class="card">
-      <h3>🟨 Enkripsi</h3>
-      
-      <div class="metric-section">
-        <div class="metric-title">Ukuran</div>
-        <div class="metric-value">
-          {% if enc_size and enc_size > 0 %}
-            {{ "%.1f"|format(enc_size / 1024) }} <span class="metric-unit">KB</span>
-          {% else %}
-            - <span class="metric-unit">KB</span>
+      <div class="grid">
+        <!-- File Asli -->
+        <div class="card">
+          <h3>🟦 File Asli</h3>
+          
+          <div class="metric-section">
+            <div class="metric-title">Ukuran</div>
+            <div class="metric-value">
+              {% if orig_size and orig_size > 0 %}
+                {{ "%.1f"|format(orig_size / 1024) }} <span class="metric-unit">KB</span>
+              {% else %}
+                - <span class="metric-unit">KB</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="metric-section">
+            <div class="metric-title">Waktu Proses</div>
+            <div class="metric-value">
+              {% if orig_time and orig_time != '-' %}
+                {{ "%.2f"|format(orig_time) }} <span class="metric-unit">ms</span>
+              {% else %}
+                {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- METRIK VIDEO - FILE ASLI -->
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">🎬 Frame Time</div>
+            <div class="metric-value">
+              {% if frame_time_orig and frame_time_orig != '-' %}
+                {{ frame_time_orig }} <span class="metric-unit">ms/frame</span>
+              {% else %}
+                - <span class="metric-unit">ms/frame</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">🎬 FPS</div>
+            <div class="metric-value">
+              {% if fps_orig and fps_orig != '-' %}
+                {{ fps_orig }} <span class="metric-unit">fps</span>
+              {% else %}
+                - <span class="metric-unit">fps</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- ENTROPY ASLI -->
+          <div class="metric-section">
+            <div class="metric-title">ENTROPY</div>
+            <div class="metric-value">{{ ent_orig|default('-') }}</div>
+            <div class="metric-detail">
+              {% if ent_orig and ent_orig != '-' %}
+                {% if ent_orig|float < 4 %}
+                  <span class="warning-text">Rendah (video terkompresi)</span>
+                {% elif ent_orig|float >= 4 and ent_orig|float < 6 %}
+                  <span>Sedang</span>
+                {% else %}
+                  <span class="success-text">Tinggi</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div style="font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:12px;">Histogram Intensitas (0-256)</div>
+            <div class="chart-container">
+              <canvas id="histOrig"></canvas>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <div style="font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:12px;">Preview</div>
+            {% if preview_orig %}
+              {% if is_video_file %}
+                <!-- VIDEO PREVIEW -->
+                <video class="video-preview" controls controlsList="nodownload" 
+                       oncontextmenu="return false;" preload="metadata">
+                  <source src="{{ url_for('static', filename='uploads/'+preview_orig) }}" 
+                          type="video/{{ file_ext }}">
+                  Browser Anda tidak mendukung tag video.
+                </video>
+              {% elif is_image_file %}
+                <!-- IMAGE PREVIEW -->
+                <img src="{{ url_for('static', filename='uploads/'+preview_orig) }}" class="preview-img">
+              {% else %}
+                <!-- UNKNOWN FILE TYPE -->
+                <div style="color:#94a3b8;font-size:10px;text-align:center;padding:10px;">
+                  {{ preview_orig }}<br>
+                  <small>(File type: {{ file_ext|upper }})</small>
+                </div>
+              {% endif %}
+            {% else %}
+              <div style="color:#94a3b8;font-size:10px;text-align:center;padding:10px;">-</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Enkripsi -->
+        <div class="card">
+          <h3>🟨 Enkripsi</h3>
+          
+          <div class="metric-section">
+            <div class="metric-title">Ukuran</div>
+            <div class="metric-value">
+              {% if enc_size and enc_size > 0 %}
+                {{ "%.1f"|format(enc_size / 1024) }} <span class="metric-unit">KB</span>
+              {% else %}
+                - <span class="metric-unit">KB</span>
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if orig_size and enc_size and orig_size > 0 %}
+                {% set size_ratio = (enc_size / orig_size * 100) %}
+                Rasio: {{ "%.1f"|format(size_ratio) }}%
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="metric-section">
+            <div class="metric-title">Waktu Proses</div>
+            <div class="metric-value">
+              {% if enc_time and enc_time != '-' %}
+                {{ "%.2f"|format(enc_time * 1000) }} <span class="metric-unit">ms</span>
+              {% else %}
+                {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if enc_time and orig_size and orig_size > 0 and enc_time > 0 %}
+                {% set speed = (orig_size / 1024 / 1024) / enc_time %}
+                {{ "%.2f"|format(speed) }} MB/detik
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- KORELASI - ENKRIPSI -->
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">📊 Korelasi</div>
+            <div class="metric-value">
+              {% if correlation_enc and correlation_enc != '-' %}
+                {{ "%.6f"|format(correlation_enc) }}
+              {% else %}
+                {{ correlation_enc|default('-') }}
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if correlation_enc and correlation_enc != '-' %}
+                {% if correlation_enc|float > -0.1 and correlation_enc|float < 0.1 %}
+                  <span class="success-text">✓ Tidak ada korelasi (baik)</span>
+                {% else %}
+                  <span class="warning-text">⚠ Ada korelasi (tidak ideal)</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- AVALANCHE EFFECT -->
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">⚡ Avalanche Effect</div>
+            <div class="metric-value">
+              {% if avalanche_effect and avalanche_effect != '-' %}
+                {{ "%.3f"|format(avalanche_effect) }}<span class="metric-unit">%</span>
+              {% else %}
+                {{ avalanche_effect|default('-') }}
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if avalanche_bits and avalanche_bits != '' %}
+                Bit berubah: {{ avalanche_bits }}
+              {% endif %}
+              {% if avalanche_effect and avalanche_effect != '-' %}
+                {% if avalanche_effect|float > 45 and avalanche_effect|float < 55 %}
+                  <span class="success-text">✓ Ideal (~50%)</span>
+                {% else %}
+                  <span class="warning-text">⚠ Tidak ideal</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- ENTROPI ENKRIPSI -->
+          <div class="metric-section">
+            <div class="metric-title">ENTROPY</div>
+            <div class="metric-value">{{ ent_enc|default('-') }}</div>
+            <div class="metric-detail">
+              {% if ent_enc and ent_enc != '-' %}
+                {% if ent_enc|float >= 7.5 %}
+                  <span class="success-text">✓ Sangat tinggi (mendekati acak sempurna)</span>
+                {% elif ent_enc|float >= 7.0 %}
+                  <span>Tinggi (baik)</span>
+                {% else %}
+                  <span class="warning-text">⚠ Rendah untuk ciphertext</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div style="font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:12px;">Histogram Intensitas (0-256)</div>
+            <div class="chart-container">
+              <canvas id="histEnc"></canvas>
+            </div>
+            <div class="metric-detail">
+              {% if hist_enc and hist_enc|length > 0 %}
+                Distribusi ciphertext harus uniform
+              {% endif %}
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <div style="font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:12px;">Kode Unik</div>
+            <div class="hashbox">{{ code or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- Dekripsi -->
+        <div class="card">
+          <h3>🟩 Dekripsi</h3>
+          
+          <div class="metric-section">
+            <div class="metric-title">Ukuran</div>
+            <div class="metric-value">
+              {% if dec_size and dec_size > 0 %}
+                {{ "%.1f"|format(dec_size / 1024) }} <span class="metric-unit">KB</span>
+              {% else %}
+                - <span class="metric-unit">KB</span>
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if orig_size and dec_size and orig_size > 0 %}
+                {% if orig_size == dec_size %}
+                  <span class="success-text">✓ Ukuran sama dengan asli</span>
+                {% else %}
+                  <span class="warning-text">⚠ Ukuran berbeda dengan asli</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="metric-section">
+            <div class="metric-title">Waktu Proses</div>
+            <div class="metric-value">
+              {% if dec_time and dec_time != '-' %}
+                {{ "%.2f"|format(dec_time * 1000) }} <span class="metric-unit">ms</span>
+              {% else %}
+                {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- METRIK VIDEO - DEKRIPSI -->
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">🎬 Frame Time</div>
+            <div class="metric-value">
+              {% if frame_time_dec and frame_time_dec != '-' %}
+                {{ frame_time_dec }} <span class="metric-unit">ms/frame</span>
+              {% else %}
+                - <span class="metric-unit">ms/frame</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">🎬 FPS</div>
+            <div class="metric-value">
+              {% if fps_dec and fps_dec != '-' %}
+                {{ fps_dec }} <span class="metric-unit">fps</span>
+              {% else %}
+                - <span class="metric-unit">fps</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- VIDEO PLAYBACK TEST -->
+          {% if playback_test != '-' %}
+          <div class="metric-section {% if playback_test == 'BISA' %}playback-success{% else %}playback-fail{% endif %}">
+            <div class="metric-title">🎬 Video Playback Test</div>
+            <div class="metric-value">
+              {% if playback_test == 'BISA' %}
+                <span class="success-text">✓ BISA DIPUTAR</span>
+              {% elif playback_test == 'TIDAK BISA' %}
+                <span class="warning-text">✗ TIDAK BISA</span>
+              {% else %}
+                <span>-</span>
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if playback_test == 'BISA' %}
+                Video hasil dekripsi berhasil diputar
+              {% elif playback_test == 'TIDAK BISA' %}
+                Video hasil dekripsi tidak bisa diputar
+              {% endif %}
+            </div>
+          </div>
           {% endif %}
+
+          <!-- KORELASI - DEKRIPSI -->
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">📊 Korelasi</div>
+            <div class="metric-value">
+              {% if correlation_dec and correlation_dec != '-' %}
+                {{ "%.6f"|format(correlation_dec) }}
+              {% else %}
+                {{ correlation_dec|default('-') }}
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if correlation_dec and correlation_dec != '-' %}
+                {% if correlation_dec|float > 0.999 %}
+                  <span class="success-text">✓ Korelasi sempurna (dekripsi berhasil)</span>
+                {% else %}
+                  <span class="warning-text">⚠ Korelasi tidak sempurna</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- HASH VERIFICATION -->
+          <div class="metric-section">
+            <div class="metric-title">HASH VERIFICATION</div>
+            <div class="metric-value">
+              {% if dec_hash != '-' and orig_hash != '-' %}
+                {% if dec_hash == orig_hash %}
+                  <span class="success-text">✓ SAMA</span>
+                {% else %}
+                  <span class="warning-text">✗ BERBEDA</span>
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if dec_hash != '-' and orig_hash != '-' %}
+                {% if dec_hash == orig_hash %}
+                  Hash file asli dan dekripsi identik
+                {% else %}
+                  Hash tidak sama - file mungkin rusak
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- ENTROPI DEKRIPSI -->
+          <div class="metric-section">
+            <div class="metric-title">ENTROPY</div>
+            <div class="metric-value">{{ ent_dec|default('-') }}</div>
+            <div class="metric-detail">
+              {% if ent_dec and ent_orig and ent_dec != '-' and ent_orig != '-' %}
+                {% if ent_dec|float == ent_orig|float %}
+                  <span class="success-text">✓ Sama dengan file asli</span>
+                {% else %}
+                  <span class="warning-text">⚠ Berbeda dengan file asli</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div style="font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:12px;">Histogram Intensitas (0-256)</div>
+            <div class="chart-container">
+              <canvas id="histDec"></canvas>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <div style="font-weight:600;color:#7dd3fc;margin-bottom:4px;font-size:12px;">Preview</div>
+            {% if preview_dec %}
+              {% if is_dec_video %}
+                <!-- VIDEO PREVIEW -->
+                <video class="video-preview" controls controlsList="nodownload" 
+                       oncontextmenu="return false;" preload="metadata">
+                  <source src="{{ url_for('static', filename='uploads/'+preview_dec) }}" 
+                          type="video/{{ dec_file_ext }}">
+                  Browser Anda tidak mendukung tag video.
+                </video>
+              {% elif is_dec_image %}
+                <!-- IMAGE PREVIEW -->
+                <img src="{{ url_for('static', filename='uploads/'+preview_dec) }}" class="preview-img">
+              {% else %}
+                <!-- UNKNOWN FILE TYPE -->
+                <div style="color:#94a3b8;font-size:10px;text-align:center;padding:10px;">
+                  {{ preview_dec }}<br>
+                  <small>(File type: {{ dec_file_ext|upper }})</small>
+                </div>
+              {% endif %}
+            {% else %}
+              <div style="color:#94a3b8;font-size:10px;text-align:center;padding:10px;">-</div>
+            {% endif %}
+          </div>
         </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">Waktu Proses</div>
-        <div class="metric-value">
-          {% if enc_time and enc_time != '-' %}
-            {{ "%.2f"|format(enc_time * 1000) }} <span class="metric-unit">ms</span>
-          {% else %}
-            {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">MSE</div>
-        <div class="metric-value">{{ mse_enc|default('-') }}</div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">PSNR</div>
-        <div class="metric-value">
-          {% if psnr_enc and psnr_enc != '-' %}
-            {{ "%.3f"|format(psnr_enc) }} <span class="metric-unit">dB</span>
-          {% else %}
-            {{ psnr_enc|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">NPCR</div>
-        <div class="metric-value">
-          {% if npcr and npcr != '-' %}
-            {{ "%.3f"|format(npcr) }}<span class="metric-unit">%</span>
-          {% else %}
-            {{ npcr|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">UACI</div>
-        <div class="metric-value">
-          {% if uaci and uaci != '-' %}
-            {{ "%.3f"|format(uaci) }}<span class="metric-unit">%</span>
-          {% else %}
-            {{ uaci|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">ENTROPY</div>
-        <div class="metric-value">{{ ent_enc|default('-') }}</div>
-      </div>
-
-      <div style="margin-top:16px;">
-        <div style="font-weight:600;color:#7dd3fc;margin-bottom:8px;font-size:14px;">Histogram Intensitas (0-256)</div>
-        <div class="chart-container">
-          <canvas id="histEnc"></canvas>
-        </div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <div style="font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;">Kode Unik</div>
-        <div class="hashbox">{{ code or '-' }}</div>
-      </div>
-    </div>
-
-    <!-- Dekripsi -->
-    <div class="card">
-      <h3>🟩 Dekripsi</h3>
-      
-      <div class="metric-section">
-        <div class="metric-title">Ukuran</div>
-        <div class="metric-value">
-          {% if dec_size and dec_size > 0 %}
-            {{ "%.1f"|format(dec_size / 1024) }} <span class="metric-unit">KB</span>
-          {% else %}
-            - <span class="metric-unit">KB</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">Waktu Proses</div>
-        <div class="metric-value">
-          {% if dec_time and dec_time != '-' %}
-            {{ "%.2f"|format(dec_time * 1000) }} <span class="metric-unit">ms</span>
-          {% else %}
-            {{ "%.2f"|format(0) }} <span class="metric-unit">ms</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">MSE</div>
-        <div class="metric-value">{{ mse|default('-') }}</div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">PSNR</div>
-        <div class="metric-value">
-          {% if psnr and psnr != '-' %}
-            {{ "%.3f"|format(psnr) }} <span class="metric-unit">dB</span>
-          {% else %}
-            {{ psnr|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">NPCR</div>
-        <div class="metric-value">
-          {% if npcr_dec and npcr_dec != '-' %}
-            {{ "%.3f"|format(npcr_dec) }}<span class="metric-unit">%</span>
-          {% else %}
-            {{ npcr_dec|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">UACI</div>
-        <div class="metric-value">
-          {% if uaci_dec and uaci_dec != '-' %}
-            {{ "%.3f"|format(uaci_dec) }}<span class="metric-unit">%</span>
-          {% else %}
-            {{ uaci_dec|default('-') }}
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="metric-section">
-        <div class="metric-title">ENTROPY</div>
-        <div class="metric-value">{{ ent_dec|default('-') }}</div>
-      </div>
-
-      <div style="margin-top:16px;">
-        <div style="font-weight:600;color:#7dd3fc;margin-bottom:8px;font-size:14px;">Histogram Intensitas (0-256)</div>
-        <div class="chart-container">
-          <canvas id="histDec"></canvas>
-        </div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <div style="font-weight:600;color:#7dd3fc;margin-bottom:6px;font-size:14px;">Preview</div>
-        {% if preview_dec %}
-          <img src="{{ url_for('static', filename='uploads/'+preview_dec) }}" class="preview-img">
-        {% else %}
-          <div style="color:#94a3b8;font-size:12px;text-align:center;padding:20px;">-</div>
-        {% endif %}
       </div>
     </div>
   </div>
-
-  <!-- Kontrol Section -->
-  <div class="card" style="margin-top:14px;">
-    <h4>Kontrol</h4>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
-      <form method="post" enctype="multipart/form-data" action="{{ url_for('encrypt') }}">
-        <label>File</label>
-        <input type="file" name="file" required>
-        <label>Password</label>
-        <input type="password" name="password" required>
-        <button type="submit">Encrypt</button>
-      </form>
-
-      <form method="post" action="{{ url_for('decrypt') }}">
-        <label>Kode</label>
-        <input type="text" name="code" required>
-        <label>Password</label>
-        <input type="password" name="password" required>
-        <button type="submit">Decrypt</button>
-      </form>
-
-      <form method="post" action="{{ url_for('report') }}">
-        <input type="hidden" name="code" value="{{ code or '' }}">
-        <button type="submit">Generate DOCX Report</button>
-      </form>
-    </div>
-  </div>
-
-  {% with messages = get_flashed_messages() %}
-  {% if messages %}
-  <div class="card" style="margin-top:12px;">
-    {% for m in messages %}
-      <p style="color:#fb7185;">⚠️ {{ m }}</p>
-    {% endfor %}
-  </div>
-  {% endif %}
-  {% endwith %}
-
-  <div class="footer">AES-GCM + Histogram + NPCR/UACI + DOCX Export | Flask Dashboard</div>
 </div>
 
 <script>
@@ -396,7 +617,7 @@ function drawChart(canvasId, data, color) {
           data: validatedData,
           borderColor: color,
           backgroundColor: color.replace('0.9', '0.1'),
-          borderWidth: 1.5,
+          borderWidth: 1.2,
           pointRadius: 0,
           tension: 0.3,
           fill: false

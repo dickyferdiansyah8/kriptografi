@@ -88,3 +88,74 @@ def generate_report(code, orig_hash="", enc_hash="", dec_hash=""):
     path = os.path.join(UPLOAD_FOLDER, "laporan.docx")
     doc.save(path)
     return path
+
+# ========== FUNGSI BARU: AVALANCHE EFFECT YANG BENAR ==========
+def calculate_avalanche_effect_correct(data: bytes, password: str):
+    """
+    Menghitung Avalanche Effect yang benar untuk binary data
+    Ubah 1 bit pada PLAINTEXT (bukan password), hitung perubahan ciphertext
+    """
+    if len(data) == 0:
+        return 0.0, 0, 0
+    
+    try:
+        # Enkripsi data asli
+        salt1 = get_random_bytes(16)
+        key1 = derive_key(password, salt1)
+        cipher1 = AES.new(key1, AES.MODE_GCM)
+        ciphertext1, tag1 = cipher1.encrypt_and_digest(data)
+        
+        # Ubah 1 bit pada plaintext (byte terakhir flip 1 bit)
+        data2 = bytearray(data)
+        data2[-1] ^= 0x01  # Flip LSB of last byte
+        
+        # Enkripsi data yang diubah (dengan salt/nonce berbeda)
+        salt2 = get_random_bytes(16)
+        key2 = derive_key(password, salt2)
+        cipher2 = AES.new(key2, AES.MODE_GCM)
+        ciphertext2, tag2 = cipher2.encrypt_and_digest(bytes(data2))
+        
+        # Ambil panjang minimum untuk perbandingan
+        min_len = min(len(ciphertext1), len(ciphertext2))
+        ciphertext1 = ciphertext1[:min_len]
+        ciphertext2 = ciphertext2[:min_len]
+        
+        # Konversi ke array bit
+        arr1 = np.unpackbits(np.frombuffer(ciphertext1, dtype=np.uint8))
+        arr2 = np.unpackbits(np.frombuffer(ciphertext2, dtype=np.uint8))
+        
+        # Hitung jumlah bit yang berbeda
+        bit_changes = np.sum(arr1 != arr2)
+        total_bits = len(arr1)
+        
+        # Hitung persentase
+        if total_bits == 0:
+            return 0.0, 0, 0
+        
+        avalanche_percentage = (bit_changes / total_bits) * 100
+        
+        return round(avalanche_percentage, 3), bit_changes, total_bits
+        
+    except Exception as e:
+        print(f"Error calculating avalanche effect: {e}")
+        return 0.0, 0, 0
+
+# ========== FUNGSI BARU: TEST VIDEO PLAYBACK ==========
+def test_video_playback(video_path):
+    """
+    Cek apakah video hasil dekripsi masih bisa diputar
+    Menggunakan OpenCV
+    """
+    try:
+        import cv2
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return False
+        
+        # Coba baca beberapa frame
+        success, frame = cap.read()
+        cap.release()
+        
+        return bool(success)
+    except Exception:
+        return False
