@@ -105,12 +105,8 @@
 
       <div class="control-group">
         <h4>Actions</h4>
-        <form method="post" action="{{ url_for('report') }}" class="form-compact">
-          <input type="hidden" name="code" value="{{ code or '' }}">
-          <button type="submit">Generate DOCX Report</button>
-        </form>
         
-        <form method="post" action="{{ url_for('cleanup') }}" class="form-compact">
+        <form method="post" action="/cleanup" class="form-compact"></form>
           <button type="submit" style="background:#ef4444;">Clear Session & Temp Files</button>
         </form>
       </div>
@@ -136,9 +132,14 @@
             • <span style="color:#7dd3fc">Avalanche:</span> ~50% = sensitif
           </div>
           <div>
-            • <span style="color:#7dd3fc">Hash Match:</span> Sama = sukses<br>
+            • <span style="color:#7dd3fc">NPCR:</span> >99% = sangat sensitif<br>
+            • <span style="color:#7dd3fc">PSNR:</span> >40 dB = sangat baik<br>
+            • <span style="color:#7dd3fc">Hash Match:</span> Sama = sukses
+          </div>
+          <div>
             • <span style="color:#7dd3fc">Playback:</span> Verifikasi video<br>
-            • <span style="color:#7dd3fc">Ukuran:</span> Harus sama
+            • <span style="color:#7dd3fc">Ukuran:</span> Harus sama<br>
+            • <span style="color:#7dd3fc">FPS:</span> Perbandingan performa
           </div>
         </div>
       </div>
@@ -343,6 +344,30 @@
             </div>
           </div>
 
+          <!-- NPCR - SENSITIVITY ANALYSIS -->
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">🎯 NPCR (Sensitivity)</div>
+            <div class="metric-value">
+              {% if npcr and npcr != '-' %}
+                {{ "%.3f"|format(npcr) }}<span class="metric-unit">%</span>
+              {% else %}
+                {{ npcr|default('-') }}
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if npcr and npcr != '-' %}
+                {% if npcr|float > 99 %}
+                  <span class="success-text">✓ Sangat Sensitif (>99%)</span>
+                {% elif npcr|float > 95 %}
+                  <span>Baik (>95%)</span>
+                {% else %}
+                  <span class="warning-text">⚠ Kurang Sensitif</span>
+                {% endif %}
+                <br><small>Persentase byte berubah setelah enkripsi</small>
+              {% endif %}
+            </div>
+          </div>
+
           <!-- ENTROPI ENKRIPSI -->
           <div class="metric-section">
             <div class="metric-title">ENTROPY</div>
@@ -454,6 +479,33 @@
                 Video hasil dekripsi berhasil diputar
               {% elif playback_test == 'TIDAK BISA' %}
                 Video hasil dekripsi tidak bisa diputar
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- PSNR - VIDEO QUALITY -->
+          {% if psnr != '-' %}
+         
+          <div class="metric-section metric-highlight">
+            <div class="metric-title">🎬 PSNR (Video Quality)</div>
+            <div class="metric-value">
+              {% if psnr and psnr != '-' %}
+                {% if psnr == 'INF' %}
+                  <span class="success-text">∞ (Sempurna)</span>
+                {% else %}
+                  {{ psnr }} <span class="metric-unit">dB</span>
+                {% endif %}
+              {% else %}
+                <span>-</span>
+                <small class="metric-unit">(Hanya untuk video)</small>
+              {% endif %}
+            </div>
+            <div class="metric-detail">
+              {% if psnr and psnr != '-' %}
+                <!-- Existing interpretation -->
+              {% else %}
+                <small>PSNR hanya dihitung untuk file video</small>
               {% endif %}
             </div>
           </div>

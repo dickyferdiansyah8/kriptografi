@@ -159,3 +159,102 @@ def test_video_playback(video_path):
         return bool(success)
     except Exception:
         return False
+
+# ========== FUNGSI BARU: PSNR UNTUK VIDEO ==========
+def calculate_video_psnr(video1_path, video2_path, max_frames=10):
+    """
+    Menghitung PSNR antara dua video
+    Menggunakan OpenCV untuk ekstraksi frame
+    """
+    try:
+        import cv2
+        import numpy as np
+        
+        cap1 = cv2.VideoCapture(video1_path)
+        cap2 = cv2.VideoCapture(video2_path)
+        
+        if not cap1.isOpened() or not cap2.isOpened():
+            return None
+        
+        psnr_values = []
+        frame_count = 0
+        
+        while frame_count < max_frames:
+            ret1, frame1 = cap1.read()
+            ret2, frame2 = cap2.read()
+            
+            if not ret1 or not ret2:
+                break
+            
+            # Konversi ke grayscale untuk perhitungan PSNR
+            if len(frame1.shape) == 3:
+                frame1_gray = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+                frame2_gray = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+            else:
+                frame1_gray = frame1
+                frame2_gray = frame2
+            
+            # Pastikan ukuran frame sama
+            if frame1_gray.shape != frame2_gray.shape:
+                # Resize frame2 ke ukuran frame1
+                frame2_gray = cv2.resize(frame2_gray, (frame1_gray.shape[1], frame1_gray.shape[0]))
+            
+            # Hitung MSE
+            mse = np.mean((frame1_gray.astype(float) - frame2_gray.astype(float)) ** 2)
+            
+            # Hitung PSNR
+            if mse == 0:
+                psnr = float('inf')
+            else:
+                psnr = 20 * np.log10(255.0 / np.sqrt(mse))
+            
+            psnr_values.append(psnr)
+            frame_count += 1
+        
+        cap1.release()
+        cap2.release()
+        
+        if not psnr_values:
+            return None
+        
+        # Rata-rata PSNR dari semua frame
+        avg_psnr = np.mean(psnr_values)
+        return round(avg_psnr, 2) if avg_psnr != float('inf') else 'INF'
+        
+    except Exception as e:
+        print(f"Error calculating video PSNR: {e}")
+        return None
+
+# ========== FUNGSI BARU: NPCR UNTUK SENSITIVITY ANALYSIS ==========
+def calculate_npcr(original_data, encrypted_data):
+    """
+    Menghitung NPCR (Number of Pixels Change Rate)
+    Untuk analisis sensitivitas - perubahan 1 bit pada plaintext
+    """
+    try:
+        import numpy as np
+        
+        # Pastikan panjang data sama
+        min_len = min(len(original_data), len(encrypted_data))
+        if min_len == 0:
+            return 0.0
+        
+        # Ambil data dengan panjang yang sama
+        data1 = original_data[:min_len]
+        data2 = encrypted_data[:min_len]
+        
+        # Konversi ke array numpy
+        arr1 = np.frombuffer(data1, dtype=np.uint8)
+        arr2 = np.frombuffer(data2, dtype=np.uint8)
+        
+        # Hitung jumlah byte yang berbeda
+        diff_count = np.sum(arr1 != arr2)
+        
+        # Hitung NPCR dalam persen
+        npcr_value = (diff_count / min_len) * 100
+        
+        return round(npcr_value, 3)
+        
+    except Exception as e:
+        print(f"Error calculating NPCR: {e}")
+        return 0.0

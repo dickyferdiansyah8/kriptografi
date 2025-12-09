@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 import os, time, base64, hashlib, secrets, glob
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
+from crypto_utils import calculate_video_psnr, calculate_npcr
 import numpy as np
 from io import BytesIO
 from docx import Document
@@ -269,12 +270,18 @@ def test_video_playback(video_path):
         return False
 
 def is_image(filename):
-    ext = filename.lower().split('.')[-1]
+    """Check if file is image - case insensitive"""
+    if not filename:
+        return False
+    ext = filename.lower().split('.')[-1] if '.' in filename else ''
     return ext in ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp']
 
 def is_video(filename):
-    ext = filename.lower().split('.')[-1]
-    return ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv']
+    """Check if file is video - case insensitive"""
+    if not filename:
+        return False
+    ext = filename.lower().split('.')[-1] if '.' in filename else ''
+    return ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', 'mpg', 'mpeg']
 
 # ========== Fungsi AES ==========
 def aes_encrypt(data: bytes, password: str):
@@ -327,7 +334,10 @@ def index():
                          frame_time_dec='-',
                          fps_dec='-',
                          avalanche_effect='-',
-                         playback_test='-')
+                         playback_test='-',
+                         # TAMBAH PARAMETER BARU
+                         npcr='-',
+                         psnr='-')
 
 @app.route('/encrypt', methods=['POST'])
 def encrypt():
@@ -386,6 +396,9 @@ def encrypt():
         # --- HITUNG AVALANCHE EFFECT YANG BENAR ---
         avalanche_effect, bit_changes, total_bits = calculate_avalanche_effect(data, password)
 
+        # --- HITUNG NPCR ---
+        npcr_value = calculate_npcr(data, enc_data)
+
         # Preview
         preview_orig = None
         if is_image(filename) or is_video(filename):
@@ -416,7 +429,9 @@ def encrypt():
             'timestamp': time.time(),
             # SIMPAN HISTOGRAM KE SESSION (SUDAH DALAM BENTUK LIST)
             'hist_orig': hist_orig,
-            'hist_enc': hist_enc
+            'hist_enc': hist_enc,
+            # TAMBAH NPCR
+            'npcr': npcr_value
         }
 
         flash("File berhasil dienkripsi!")
@@ -442,6 +457,8 @@ def encrypt():
                                frame_time_enc='-',
                                fps_enc='-',
                                avalanche_effect=avalanche_effect,
+                               # TAMBAH NPCR
+                               npcr=npcr_value,
                                
                                # Dekripsi (kosong)
                                dec_hash='-',
@@ -455,7 +472,9 @@ def encrypt():
                                frame_time_dec='-',
                                fps_dec='-',
                                orig_time=0,
-                               playback_test='-')
+                               playback_test='-',
+                               # TAMBAH PSNR KOSONG
+                               psnr='-')
 
     except Exception as e:
         flash(f"Enkripsi gagal: {str(e)}")
@@ -501,11 +520,33 @@ def decrypt():
         dec_data = aes_decrypt(enc_data, password)
         dec_time = time.time() - start
 
+        # ========== PERBAIKAN BAGIAN INI ==========
         orig_filename = last_encryption.get('orig_filename', 'file')
+        
+        # Hapus .enc dari nama file jika ada
         if orig_filename.endswith('.enc'):
-            dec_filename = orig_filename[:-4] + '_dec'
+            base_name = orig_filename[:-4]  # hapus '.enc'
         else:
-            dec_filename = orig_filename + '_dec'
+            base_name = orig_filename
+        
+        # Pisahkan nama dan ekstensi dengan benar
+        if '.' in base_name:
+            # Split pada titik terakhir untuk mendapatkan nama dan ekstensi
+            name_parts = base_name.rsplit('.', 1)
+            if len(name_parts) == 2:
+                name, ext = name_parts
+                dec_filename = f"{name}_dec.{ext}"
+            else:
+                dec_filename = f"{base_name}_dec"
+        else:
+            dec_filename = f"{base_name}_dec"
+        
+        # Debug info
+        print(f"DEBUG - File Naming:")
+        print(f"  Original filename: {orig_filename}")
+        print(f"  Base name: {base_name}")
+        print(f"  Decrypted filename: {dec_filename}")
+        # ========== END PERBAIKAN ==========
         
         dec_path = os.path.join(UPLOAD_FOLDER, dec_filename)
         with open(dec_path, 'wb') as f:
@@ -524,12 +565,20 @@ def decrypt():
             correlation_dec = 0.0
             correlation_dec_quality = "No original data for comparison"
 
+        # --- HITUNG PSNR UNTUK VIDEO ---
+        psnr_value = '-'
+        if is_video(dec_filename) and orig_path and os.path.exists(orig_path):
+            print(f"DEBUG - Calculating PSNR for {dec_filename}")
+            psnr_value = calculate_video_psnr(orig_path, dec_path)
+            print(f"DEBUG - PSNR result: {psnr_value}")
+
         # --- VIDEO METRICS DEKRIPSI ---
         frame_time_dec = '-'
         fps_dec = '-'
         playback_test = '-'
         
         if is_video(dec_filename):
+            print(f"DEBUG - Calculating video metrics for {dec_filename}")
             video_metrics_dec = calculate_video_metrics(dec_path)
             frame_time_dec = video_metrics_dec['frame_time'] if video_metrics_dec else '-'
             fps_dec = video_metrics_dec['fps'] if video_metrics_dec else '-'
@@ -541,6 +590,11 @@ def decrypt():
         preview_dec = None
         if is_image(dec_filename) or is_video(dec_filename):
             preview_dec = dec_filename
+            print(f"DEBUG - Preview set to: {preview_dec}")
+            print(f"DEBUG - is_image({dec_filename}): {is_image(dec_filename)}")
+            print(f"DEBUG - is_video({dec_filename}): {is_video(dec_filename)}")
+        else:
+            print(f"DEBUG - No preview (not image/video): {dec_filename}")
 
         # AMBIL HISTOGRAM DARI SESSION
         hist_orig_from_session = last_encryption.get('hist_orig', [])
@@ -573,6 +627,8 @@ def decrypt():
                                frame_time_enc='-',
                                fps_enc='-',
                                avalanche_effect=last_encryption.get('avalanche_effect', '-'),
+                               # TAMBAH NPCR DARI SESSION
+                               npcr=last_encryption.get('npcr', '-'),
                                
                                # Data Dekripsi (baru dihitung)
                                dec_hash=dec_hash, 
@@ -586,47 +642,62 @@ def decrypt():
                                frame_time_dec=frame_time_dec,
                                fps_dec=fps_dec,
                                orig_time=0,
-                               playback_test=playback_test)
+                               playback_test=playback_test,
+                               # TAMBAH METRIK BARU
+                               psnr=psnr_value)
 
     except Exception as e:
+        print(f"ERROR in decrypt: {str(e)}")
+        import traceback
+        traceback.print_exc()
         flash(f"Dekripsi gagal: {str(e)}")
         return redirect(url_for('index'))
-
-@app.route('/download/<filename>')
-def download_dec(filename):
-    return send_file(os.path.join(UPLOAD_FOLDER, filename), as_attachment=True)
-
-@app.route('/report', methods=['POST'])
-def report():
-    code = request.form.get('code', '')
-    doc = Document()
-    doc.add_heading('Laporan Enkripsi AES-GCM', 0)
-    doc.add_paragraph(f'Kode Unik: {code}')
-    doc.add_paragraph('Laporan ini dihasilkan otomatis oleh sistem Flask.')
-    out = BytesIO()
-    doc.save(out)
-    out.seek(0)
-    return send_file(out, as_attachment=True, download_name='laporan_AES.docx')
-
-@app.route('/cleanup', methods=['POST'])
-def cleanup():
-    """Route khusus untuk membersihkan session dan file temporary"""
-    try:
-        # Hapus file temporary
-        pattern = os.path.join(UPLOAD_FOLDER, "*.orig")
-        for file_path in glob.glob(pattern):
-            try:
-                os.remove(file_path)
-            except:
-                pass
-        
-        # Clear session
-        session.clear()
-        flash("Session dan file temporary berhasil dibersihkan!")
-    except Exception as e:
-        flash(f"Cleanup gagal: {str(e)}")
+@app.route('/debug/files')
+def debug_files():
+    """Route debug SIMPLE tanpa styling"""
+    files = os.listdir(UPLOAD_FOLDER)
     
-    return redirect(url_for('index'))
-
+    html_lines = [
+        "<h1>Debug Files</h1>",
+        "<p>Path: {}</p>".format(UPLOAD_FOLDER),
+        "<a href='/'>← Back to Dashboard</a>",
+        "<table border='1'>",
+        "<tr><th>No</th><th>Filename</th><th>Size</th><th>Type</th><th>Preview</th></tr>"
+    ]
+    
+    for i, f in enumerate(files, 1):
+        path = os.path.join(UPLOAD_FOLDER, f)
+        size = os.path.getsize(path)
+        
+        # Size format
+        if size > 1024*1024:
+            size_str = f"{size/(1024*1024):.2f} MB"
+        elif size > 1024:
+            size_str = f"{size/1024:.2f} KB"
+        else:
+            size_str = f"{size} bytes"
+        
+        # File type
+        if f.endswith('.orig'):
+            ftype = "Backup"
+        elif f.endswith('.enc'):
+            ftype = "Encrypted"
+        elif '_dec' in f:
+            ftype = "Decrypted"
+        else:
+            ftype = "Original"
+        
+        # Preview
+        if is_video(f):
+            preview = f"<video width='100' controls><source src='/static/uploads/{f}'></video>"
+        elif is_image(f):
+            preview = f"<img src='/static/uploads/{f}' width='100'>"
+        else:
+            preview = f"📄 {ftype}"
+        
+        html_lines.append(f"<tr><td>{i}</td><td>{f}</td><td>{size_str}</td><td>{ftype}</td><td>{preview}</td></tr>")
+    
+    html_lines.append("</table>")
+    return "\n".join(html_lines)
 if __name__ == '__main__':
     app.run(debug=True)
